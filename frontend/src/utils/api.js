@@ -4,13 +4,28 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 60000,
+  timeout: 180000,
 })
+
+async function postWithRetry(url, data, config = {}) {
+  try {
+    return await api.post(url, data, config)
+  } catch (error) {
+    const status = error.response?.status
+    const shouldRetry = !error.response || status === 502 || status === 503 || status === 504
+    if (!shouldRetry) {
+      throw error
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 5000))
+    return api.post(url, data, config)
+  }
+}
 
 export async function analyzeResume(file, onUploadProgress) {
   const formData = new FormData()
   formData.append('file', file)
-  const response = await api.post('/analyze', formData, {
+  const response = await postWithRetry('/analyze', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress
   })
